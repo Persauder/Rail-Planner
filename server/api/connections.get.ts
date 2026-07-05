@@ -1,24 +1,89 @@
-import {connections} from "#server/data/connections";
+import {
+    createError,
+    defineEventHandler,
+    getQuery,
+} from "h3"
+import {
+    fetchDirectConnections,
+    resolvePkpStation,
+} from "#server/utils/pkp"
 
-export default defineEventHandler((event) => {
-    const query = getQuery(event);
+const datePattern = /^\d{4}-\d{2}-\d{2}$/
+const maximumStationNameLength = 100
 
-    const from = String(query.from || "").toLowerCase()
-    const to = String(query.to || "").toLowerCase()
-
-    if(!from && !to) {
-        return connections;
+const getSingleQueryValue = (value: unknown) => {
+    if (Array.isArray(value)) {
+        return String(value[0] ?? "").trim()
     }
 
-    return connections.filter((connection) => {
-        const matchesFrom =
-            connection.from.city.toLowerCase().includes(from) ||
-            connection.from.name.toLowerCase().includes(from)
+    return String(value ?? "").trim()
+}
 
-        const matchesTo =
-            connection.to.city.toLowerCase().includes(to) ||
-            connection.to.name.toLowerCase().includes(to)
+const todayInPoland = () => {
+    const parts = new Intl.DateTimeFormat("en", {
+        timeZone: "Europe/Warsaw",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).formatToParts(new Date())
+    const valueByType = Object.fromEntries(
+        parts.map((part) => [part.type, part.value]),
+    )
 
-        return matchesFrom && matchesTo;
-    })
+    return `${valueByType.year}-${valueByType.month}-${valueByType.day}`
+}
+
+const isValidDate = (date: string) => {
+    if (!datePattern.test(date)) {
+        return false
+    }
+
+    const parsedDate = new Date(`${date}T00:00:00.000Z`)
+    return !Number.isNaN(parsedDate.getTime())
+        && parsedDate.toISOString().slice(0, 10) === date
+}
+
+export default defineEventHandler(async (event) => {
+    const query = getQuery(event)
+    const from = getSingleQueryValue(query.from)
+    const to = getSingleQueryValue(query.to)
+    const date = getSingleQueryValue(query.date) || todayInPoland()
+
+    if (!from || !to) {
+        throw createError({
+            statusCode: 400,
+            statusMessage: "Both departure and destination stations are required",
+        })
+    }
+
+    if (
+        from.length > maximumStationNameLength
+        || to.length > maximumStationNameLength
+    ) {
+        throw createError({
+            statusCode: 400,
+            statusMessage: "Station names must not exceed 100 characters",
+        })
+    }
+
+    if (!isValidDate(date)) {
+        throw createError({
+            statusCode: 400,
+            statusMessage: "Date must be valid and use the YYYY-MM-DD format",
+        })
+    }
+
+    const [fromStation, toStation] = await Promise.all([
+        resolvePkpStation(from),
+        resolvePkpStation(to),
+    ])
+
+    if (fromStation.id === toStation.id) {
+        throw createError({
+            statusCode: 400,
+            statusMessage: "Departure and destination stations must be different",
+        })
+    }
+
+    return fetchDirectConnections(fromStation.id, toStation.id, date)
 })

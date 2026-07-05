@@ -66,7 +66,10 @@ const formatDuration = (minutes: number) => {
           </div>
           <div class="details__price">
             <span>Total fare</span>
-            <strong>{{ connection.price.toFixed(2) }} <small>{{ connection.currency }}</small></strong>
+            <strong v-if="connection.price !== null">
+              {{ connection.price.toFixed(2) }} <small>{{ connection.currency }}</small>
+            </strong>
+            <strong v-else>Unavailable</strong>
           </div>
         </footer>
       </article>

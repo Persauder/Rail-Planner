@@ -20,6 +20,16 @@ yarn install
 bun install
 ```
 
+Copy `.env.example` to `.env` and set `NUXT_PKP_API_KEY` to your key from
+[PKP PLK Open Data](https://pdp-api.plk-sa.pl/). During local development, the
+server can also read the ignored `api-key-*.txt` credential file downloaded
+from that site.
+
+The key is used only by Nuxt server routes and is never sent to the browser.
+Journey searches currently return direct, planned trains for the current day.
+The PKP PLK API does not provide ticket fares, so the interface labels fares as
+unavailable.
+
 ## Development Server
 
 Start the development server on `http://localhost:3000`:

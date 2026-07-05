@@ -1,13 +1,29 @@
-import { connections } from "../../data/connections"
+import {
+    decodeConnectionId,
+    fetchDirectConnections,
+} from "#server/utils/pkp"
 
-export default defineEventHandler((event) => {
+export default defineEventHandler(async (event) => {
     const id = getRouterParam(event, "id")
+    const identity = decodeConnectionId(String(id || ""))
 
+    if (!identity) {
+        throw createError({
+            statusCode: 404,
+            statusMessage: "Connection not found",
+        })
+    }
+
+    const connections = await fetchDirectConnections(
+        identity.fromId,
+        identity.toId,
+        identity.date,
+    )
     const connection = connections.find((item) => item.id === id)
 
     if (!connection) {
         throw createError({
-            status: 404,
+            statusCode: 404,
             statusText: "Connection not found",
         })
     }

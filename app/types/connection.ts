@@ -16,8 +16,9 @@ export type Connection = {
     departureTime: string;
     arrivalTime: string;
     durationMinutes: number;
-    price: number;
-    currency: "PLN";
+    price: number | null;
+    currency: "PLN" | null;
     carrier: Carrier;
     changes: number;
+    trainNumber?: string;
 }
