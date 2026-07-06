@@ -202,6 +202,8 @@ export const fetchDirectConnections = async (
     fromId: number,
     toId: number,
     date: string,
+    earliestDeparture = "00:00",
+    latestArrival = "23:59",
 ) => {
     const response = await pkpFetch<ScheduleResponse>("/schedules", {
         dateFrom: date,
@@ -217,6 +219,8 @@ export const fetchDirectConnections = async (
             !departure?.departureTime
             || !arrival?.arrivalTime
             || departure.orderNumber >= arrival.orderNumber
+            || shortTime(departure.departureTime) < earliestDeparture
+            || shortTime(arrival.arrivalTime) > latestArrival
         ) {
             return []
         }

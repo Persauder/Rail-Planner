@@ -6,25 +6,117 @@ const { searchConnections } = useConnections()
 const connections = ref<Connection[]>([])
 const isLoading = ref(false)
 const errorMessage = ref("")
-const currentRoute = reactive({ from: "Kraków", to: "Warszawa" })
+const hasSearched = ref(false)
+const route = useRoute()
+const router = useRouter()
+const searchStorageKey = "rail-planner:last-search"
 
-const handleSearch = async (params: { from: string; to: string }) => {
+type SearchParams = {
+  from: string
+  to: string
+  date: string
+  departureAfter: string
+  arriveBefore: string
+}
+
+const emptySearch = (): SearchParams => ({
+  from: "",
+  to: "",
+  date: "",
+  departureAfter: "",
+  arriveBefore: "",
+})
+const currentRoute = reactive<SearchParams>(emptySearch())
+const restoredSearch = reactive<SearchParams>(emptySearch())
+
+const queryValue = (value: unknown) =>
+  Array.isArray(value) ? String(value[0] || "") : String(value || "")
+
+const searchFromQuery = (): SearchParams => ({
+  from: queryValue(route.query.from),
+  to: queryValue(route.query.to),
+  date: queryValue(route.query.date),
+  departureAfter: queryValue(route.query.departureAfter || route.query.time),
+  arriveBefore: queryValue(route.query.arriveBefore),
+})
+
+const canSearch = (params: SearchParams) =>
+  Boolean(params.from && params.to && params.date && params.from !== params.to)
+
+const formattedSearchDate = computed(() => {
+  if (!currentRoute.date) return ""
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Europe/Warsaw",
+  }).format(new Date(`${currentRoute.date}T12:00:00Z`))
+})
+
+const formattedTimeRange = computed(() => {
+  if (currentRoute.departureAfter && currentRoute.arriveBefore) {
+    return `depart after ${currentRoute.departureAfter}, arrive before ${currentRoute.arriveBefore}`
+  }
+  if (currentRoute.departureAfter) {
+    return `depart after ${currentRoute.departureAfter}`
+  }
+  if (currentRoute.arriveBefore) {
+    return `arrive before ${currentRoute.arriveBefore}`
+  }
+  return "any departure time"
+})
+
+const handleSearch = async (params: SearchParams) => {
+  hasSearched.value = true
   isLoading.value = true
   errorMessage.value = ""
   currentRoute.from = params.from
   currentRoute.to = params.to
+  currentRoute.date = params.date
+  currentRoute.departureAfter = params.departureAfter
+  currentRoute.arriveBefore = params.arriveBefore
+  Object.assign(restoredSearch, params)
+
+  localStorage.setItem(searchStorageKey, JSON.stringify(params))
+  void router.replace({
+    query: {
+      from: params.from,
+      to: params.to,
+      date: params.date,
+      ...(params.departureAfter
+        ? { departureAfter: params.departureAfter }
+        : {}),
+      ...(params.arriveBefore
+        ? { arriveBefore: params.arriveBefore }
+        : {}),
+    },
+  })
 
   try {
     connections.value = await searchConnections(params)
-  } catch {
-    errorMessage.value = "Something went wrong. Please try again."
+  } catch (error: any) {
+    errorMessage.value = error?.data?.statusMessage
+      || "Something went wrong. Please try again."
   } finally {
     isLoading.value = false
   }
 }
 
 onMounted(() => {
-  handleSearch({ from: "Kraków", to: "Warszawa" })
+  let savedSearch = searchFromQuery()
+
+  if (!canSearch(savedSearch)) {
+    try {
+      const storedValue = localStorage.getItem(searchStorageKey)
+      if (storedValue) savedSearch = { ...emptySearch(), ...JSON.parse(storedValue) }
+    } catch {
+      localStorage.removeItem(searchStorageKey)
+    }
+  }
+
+  Object.assign(restoredSearch, savedSearch)
+  if (canSearch(savedSearch)) void handleSearch(savedSearch)
 })
 </script>
 
@@ -71,7 +163,7 @@ onMounted(() => {
       </div>
 
       <div class="container hero__search">
-        <SearchForm @search="handleSearch" />
+        <SearchForm :initial-values="restoredSearch" @search="handleSearch" />
         <div class="hero__benefits">
           <span>
             <svg viewBox="0 0 24 24" fill="none"><path d="m5 12 4 4L19 6" /></svg>
@@ -87,10 +179,11 @@ onMounted(() => {
 
     <section id="connections" class="results">
       <div class="container">
-        <div class="results__header">
+        <div v-if="hasSearched" class="results__header">
           <div>
             <p class="eyebrow"><span />Available journeys</p>
             <h2>{{ currentRoute.from }} to {{ currentRoute.to }}</h2>
+            <p class="results__when">{{ formattedSearchDate }}, {{ formattedTimeRange }}</p>
           </div>
           <p v-if="!isLoading && !errorMessage">
             {{ connections.length }} {{ connections.length === 1 ? "connection" : "connections" }}
@@ -98,7 +191,12 @@ onMounted(() => {
         </div>
 
         <div aria-live="polite">
-          <div v-if="isLoading" class="results__state">
+          <div v-if="!hasSearched" class="results__state results__state--idle">
+            <strong>Where do you want to go?</strong>
+            <p>Choose stations and a date. Time filters are optional.</p>
+          </div>
+
+          <div v-else-if="isLoading" class="results__state">
             <span class="results__loader" />
             <p>Checking the tracks…</p>
           </div>
@@ -130,7 +228,7 @@ onMounted(() => {
 .hero {
   position: relative;
   padding: 72px 0 0;
-  overflow: hidden;
+  overflow: visible;
   background: var(--ink);
   color: #fff;
 
@@ -339,6 +437,12 @@ onMounted(() => {
       font-size: clamp(2rem, 4vw, 3.1rem);
       font-weight: 500;
       letter-spacing: -0.04em;
+    }
+
+    .results__when {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 0.82rem;
     }
 
     > p {

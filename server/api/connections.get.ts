@@ -9,6 +9,7 @@ import {
 } from "#server/utils/pkp"
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/
+const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/
 const maximumStationNameLength = 100
 
 const getSingleQueryValue = (value: unknown) => {
@@ -48,6 +49,10 @@ export default defineEventHandler(async (event) => {
     const from = getSingleQueryValue(query.from)
     const to = getSingleQueryValue(query.to)
     const date = getSingleQueryValue(query.date) || todayInPoland()
+    const departureAfter = getSingleQueryValue(
+        query.departureAfter || query.time,
+    )
+    const arriveBefore = getSingleQueryValue(query.arriveBefore)
 
     if (!from || !to) {
         throw createError({
@@ -73,6 +78,20 @@ export default defineEventHandler(async (event) => {
         })
     }
 
+    if (departureAfter && !timePattern.test(departureAfter)) {
+        throw createError({
+            statusCode: 400,
+            statusMessage: "Departure time must be valid and use the HH:mm format",
+        })
+    }
+
+    if (arriveBefore && !timePattern.test(arriveBefore)) {
+        throw createError({
+            statusCode: 400,
+            statusMessage: "Arrival time must be valid and use the HH:mm format",
+        })
+    }
+
     const [fromStation, toStation] = await Promise.all([
         resolvePkpStation(from),
         resolvePkpStation(to),
@@ -85,5 +104,11 @@ export default defineEventHandler(async (event) => {
         })
     }
 
-    return fetchDirectConnections(fromStation.id, toStation.id, date)
+    return fetchDirectConnections(
+        fromStation.id,
+        toStation.id,
+        date,
+        departureAfter || "00:00",
+        arriveBefore || "23:59",
+    )
 })

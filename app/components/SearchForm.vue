@@ -2,16 +2,69 @@
 type SearchFormData = {
   from: string
   to: string
+  date: string
+  departureAfter: string
+  arriveBefore: string
 }
+
+const props = withDefaults(defineProps<{
+  initialValues?: Partial<SearchFormData>
+}>(), {
+  initialValues: () => ({}),
+})
 
 const emit = defineEmits<{
   search: [payload: SearchFormData]
 }>()
 
 const form = reactive<SearchFormData>({
-  from: "Kraków",
-  to: "Warszawa",
+  from: props.initialValues.from || "",
+  to: props.initialValues.to || "",
+  date: props.initialValues.date || "",
+  departureAfter: props.initialValues.departureAfter || "",
+  arriveBefore: props.initialValues.arriveBefore || "",
 })
+
+const isComplete = computed(() =>
+  Boolean(
+    form.from.trim()
+    && form.to.trim()
+    && form.from.trim() !== form.to.trim()
+    && form.date
+  ),
+)
+
+watch(() => form.date, (date) => {
+  if (!date) return
+
+  const now = new Date()
+  const localDate = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("-")
+  const localTime = [
+    String(now.getHours()).padStart(2, "0"),
+    String(now.getMinutes()).padStart(2, "0"),
+  ].join(":")
+
+  if (date === localDate) {
+    if (form.departureAfter && form.departureAfter < localTime) {
+      form.departureAfter = ""
+    }
+    if (form.arriveBefore && form.arriveBefore < localTime) {
+      form.arriveBefore = ""
+    }
+  }
+})
+
+watch(() => props.initialValues, (values) => {
+  form.from = values.from || ""
+  form.to = values.to || ""
+  form.date = values.date || ""
+  form.departureAfter = values.departureAfter || ""
+  form.arriveBefore = values.arriveBefore || ""
+}, { deep: true })
 
 const swapStations = () => {
   const currentFrom = form.from
@@ -20,32 +73,27 @@ const swapStations = () => {
 }
 
 const handleSubmit = () => {
+  if (!isComplete.value) return
+
   emit("search", {
     from: form.from.trim(),
     to: form.to.trim(),
+    date: form.date,
+    departureAfter: form.departureAfter,
+    arriveBefore: form.arriveBefore,
   })
 }
 </script>
 
 <template>
   <form class="search-form" @submit.prevent="handleSubmit">
-    <div class="search-form__field">
-      <label for="from">Leaving from</label>
-      <div class="search-form__input-wrap">
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="12" cy="12" r="7" />
-          <circle cx="12" cy="12" r="2.5" />
-        </svg>
-        <input
-            id="from"
-            v-model="form.from"
-            type="text"
-            autocomplete="off"
-            placeholder="Kraków"
-            required
-        >
-      </div>
-    </div>
+    <StationPicker
+        id="from"
+        v-model="form.from"
+        class="search-form__station"
+        label="Leaving from"
+        placeholder="Select station"
+    />
 
     <button
         class="search-form__swap"
@@ -58,37 +106,53 @@ const handleSubmit = () => {
       </svg>
     </button>
 
-    <div class="search-form__field">
-      <label for="to">Going to</label>
-      <div class="search-form__input-wrap">
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z" />
-          <circle cx="12" cy="10" r="2.3" />
-        </svg>
-        <input
-            id="to"
-            v-model="form.to"
-            type="text"
-            autocomplete="off"
-            placeholder="Warszawa"
-            required
-        >
-      </div>
-    </div>
+    <StationPicker
+        id="to"
+        v-model="form.to"
+        class="search-form__station"
+        label="Going to"
+        placeholder="Select station"
+        destination
+    />
 
-    <button class="search-form__submit" type="submit">
+    <DatePicker v-model="form.date" class="search-form__field--date" />
+    <TimePicker
+        id="departure-after"
+        v-model="form.departureAfter"
+        :date="form.date"
+        class="search-form__field--departure"
+        label="Departure after"
+    />
+    <TimePicker
+        id="arrive-before"
+        v-model="form.arriveBefore"
+        :date="form.date"
+        class="search-form__field--arrival"
+        label="Arrive before"
+        quick-label="Current time"
+    />
+
+    <button class="search-form__submit" type="submit" :disabled="!isComplete">
       <span>Find trains</span>
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M5 12h14m-5-5 5 5-5 5" />
       </svg>
     </button>
+
   </form>
 </template>
 
 <style scoped lang="scss">
 .search-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr) auto;
+  grid-template-columns:
+    minmax(180px, 1fr)
+    44px
+    minmax(180px, 1fr)
+    minmax(145px, 0.65fr)
+    minmax(112px, 0.5fr)
+    minmax(112px, 0.5fr)
+    auto;
   gap: 12px;
   align-items: end;
   padding: 14px;
@@ -188,10 +252,22 @@ const handleSubmit = () => {
     font-weight: 800;
     cursor: pointer;
     transition: transform 160ms ease, background 160ms ease;
+    margin-left: 10px;
+
+    &:disabled {
+      background: #e1e3da;
+      color: #9ca29e;
+      cursor: not-allowed;
+    }
 
     &:hover {
       transform: translateY(-2px);
       background: #d7f067;
+    }
+
+    &:hover:disabled {
+      transform: none;
+      background: #e1e3da;
     }
 
     svg {
@@ -204,12 +280,24 @@ const handleSubmit = () => {
   }
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1150px) {
   .search-form {
     grid-template-columns: 1fr 44px 1fr;
 
+    &__field--date {
+      grid-column: 1 / 2;
+    }
+
+    &__field--departure {
+      grid-column: 3 / 4;
+    }
+
+    &__field--arrival {
+      grid-column: 1 / 2;
+    }
+
     &__submit {
-      grid-column: 1 / -1;
+      grid-column: 3 / 4;
     }
   }
 }
@@ -229,6 +317,16 @@ const handleSubmit = () => {
     }
 
     &__submit {
+      grid-column: auto;
+      margin-left: 0;
+    }
+
+    &__field--date {
+      grid-column: auto;
+    }
+
+    &__field--departure,
+    &__field--arrival {
       grid-column: auto;
     }
   }
