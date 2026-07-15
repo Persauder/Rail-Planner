@@ -58,9 +58,15 @@ const changeLabel = (changes: number) => {
         {{ changeLabel(connection.changes) }}
       </span>
       <p class="connection-card__price">
-        <small>from</small>
-        {{ connection.price.toFixed(2) }}
-        <span>{{ connection.currency }}</span>
+        <template v-if="connection.price !== null">
+          <small>from</small>
+          {{ connection.price.toFixed(2) }}
+          <span>{{ connection.currency }}</span>
+        </template>
+        <template v-else>
+          <small>fare</small>
+          <span>Unavailable</span>
+        </template>
       </p>
     </div>
 

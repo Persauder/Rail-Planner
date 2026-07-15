@@ -3,6 +3,9 @@ import type { Connection } from "~/types/connection"
 type SearchParams = {
     from: string
     to: string
+    date: string
+    departureAfter: string
+    arriveBefore: string
 }
 
 export const useConnections = () => {
