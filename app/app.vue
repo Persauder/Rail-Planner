@@ -4,7 +4,7 @@ useHead({
   meta: [
     {
       name: "description",
-      content: "Compare train connections, travel times and fares across Poland.",
+      content: "Search direct train connections and compare travel times across Poland.",
     },
   ],
 })
