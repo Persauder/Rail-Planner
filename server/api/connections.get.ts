@@ -78,6 +78,13 @@ export default defineEventHandler(async (event) => {
         })
     }
 
+    if (date < todayInPoland()) {
+        throw createError({
+            statusCode: 400,
+            statusMessage: "Travel date cannot be in the past",
+        })
+    }
+
     if (departureAfter && !timePattern.test(departureAfter)) {
         throw createError({
             statusCode: 400,
@@ -89,6 +96,13 @@ export default defineEventHandler(async (event) => {
         throw createError({
             statusCode: 400,
             statusMessage: "Arrival time must be valid and use the HH:mm format",
+        })
+    }
+
+    if (departureAfter && arriveBefore && departureAfter > arriveBefore) {
+        throw createError({
+            statusCode: 400,
+            statusMessage: "Departure time must be earlier than arrival time",
         })
     }
 

@@ -3,8 +3,8 @@ export default defineNuxtConfig({
     devtools: { enabled: true },
     css: ["~/assets/scss/main.scss"],
     runtimeConfig: {
-        pkpApiKey: process.env.PKP_API_KEY || "",
-        pkpApiKeyFile: process.env.PKP_API_KEY_FILE || "",
+        pkpApiKey: "",
+        pkpApiKeyFile: "",
         pkpApiBaseUrl: "https://pdp-api.plk-sa.pl/api/v1",
     },
 })
